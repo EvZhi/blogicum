@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models
-
+from django.urls import reverse
 from core.models import IsPublishedAndCreatedAtModel
 
 MAX_LENGHT_CHAR = 256
@@ -37,6 +37,7 @@ class Post(IsPublishedAndCreatedAtModel):
         verbose_name='Категория',
         related_name='posts_category'
     )
+    image = models.ImageField(verbose_name='Картинка у публикации', blank=True)
 
     class Meta:
         verbose_name = 'публикация'
@@ -45,6 +46,9 @@ class Post(IsPublishedAndCreatedAtModel):
 
     def __str__(self):
         return self.title
+
+    def get_absolute_url(self):
+        return reverse('blog:post_detail', args=(self.pk,))
 
 
 class Category(IsPublishedAndCreatedAtModel):
@@ -74,3 +78,28 @@ class Location(IsPublishedAndCreatedAtModel):
 
     def __str__(self):
         return self.name
+
+
+class Comments(IsPublishedAndCreatedAtModel):
+
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Автор комментария',
+        related_name='comments',
+    )
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        verbose_name='Комментируемый пост',
+        related_name='comments',
+    )
+    text = models.TextField(verbose_name='Текст комментария')
+
+    class Meta:
+        verbose_name = 'комментарий'
+        verbose_name_plural = ' Комментарии'
+        ordering = ('created_at',)
+
+    def __str__(self):
+        return self.text[:30]
