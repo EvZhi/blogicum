@@ -5,14 +5,22 @@ from django.urls import path
 from . import views
 
 app_name = 'blog'
+POSTS_URL = 'posts/<int:post_id>'
 
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
 
-    path('posts/<int:post_id>/', views.post_detail, name='post_detail'),
-    path('posts/<int:post_id>/edit/', views.EditPostView.as_view(), name='edit_post'),
-    path('posts/<int:post_id>/delete/', views.DeletePostView.as_view(), name='delete_post'),
-    path('create_post/', views.CreatePostView.as_view(), name='create_post'),
+    path(f'{POSTS_URL}/', views.PostDeteailView.as_view(), name='post_detail'),
+    path(f'{POSTS_URL}/edit/', views.EditPostView.as_view(), name='edit_post'),
+    path(f'{POSTS_URL}/delete/', views.DeletePostView.as_view(), name='delete_post'),
+
+
+    path(f'{POSTS_URL}/comment', views.CommentCreateView.as_view(), name='add_comment'),
+    path(f'{POSTS_URL}/edit_comment/<int:comment_id>/', views.EditCommentView.as_view(), name='edit_comment'),
+    path(f'{POSTS_URL}/delete_comment/<int:comment_id>/', views.DeleteCommentView.as_view(),name='delete_comment'),
+
+
+    path('posts/create/', views.CreatePostView.as_view(), name='create_post'),
 
     path('profile/<slug:username>/', views.ProfileView.as_view(), name='profile'),
     path('edit_profile/', views.EditProfileView.as_view(), name='edit_profile'),

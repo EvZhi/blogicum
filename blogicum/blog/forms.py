@@ -2,7 +2,7 @@
 from django import forms
 from django.utils import timezone
 
-from .models import Post
+from .models import Post, Comments
 
 
 class PostForm(forms.ModelForm):
@@ -21,3 +21,10 @@ class PostForm(forms.ModelForm):
                 format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
             )
         }
+
+
+class CommentsForm(forms.ModelForm):
+
+    class Meta:
+        model = Comments
+        fields = ('text',)
