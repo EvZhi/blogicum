@@ -1,11 +1,18 @@
-from django.contrib.auth.models import User
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.http.response import HttpResponse as HttpResponse
+from django.contrib.auth.models import User
+from django.db.models import Q
+from django.db.models.base import Model as Model
 from django.views.generic import (
-    CreateView, DetailView, DeleteView, ListView, UpdateView
+    CreateView,
+    DetailView,
+    DeleteView,
+    ListView,
+    UpdateView
 )
-from django.shortcuts import get_object_or_404
+
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 
 from blog.models import Category, Post, Comments
 from blog.forms import PostForm, CommentsForm
@@ -23,6 +30,13 @@ class IndexView(ListView):
     paginate_by = 10
     template_name = 'blog/index.html'
 
+    def get_queryset(self):
+        return Post.post_manager.filter(
+            pub_date__lte=timezone.now(),
+            is_published=True,
+            category__is_published=True
+        )
+
 
 class ProfileView(ListView):
     model = Post
@@ -37,7 +51,14 @@ class ProfileView(ListView):
         return context
 
     def get_queryset(self):
-        return Post.published.filter(author__username=self.kwargs['username'])
+        qs = Post.post_manager.filter(author__username=self.kwargs['username'])
+        if self.request.user.is_authenticated and self.request.user.username == self.kwargs['username']:
+            return qs
+        return qs.filter(
+            pub_date__lte=timezone.now(),
+            is_published=True,
+            category__is_published=True
+        )
 
 
 class EditProfileView(LoginRequiredMixin, UpdateView):
@@ -67,21 +88,33 @@ class CreatePostView(LoginRequiredMixin, CreateView):
         return reverse('blog:profile', args=(slug,))
 
 
-class PostDeteailView(DetailView):
+class PostDetailView(DetailView):
     model = Post
     template_name = 'blog/detail.html'
     pk_url_kwarg = 'post_id'
 
     def get_context_data(self, **kwargs):
+        post_obj = get_object_or_404(self.get_queryset(), pk=self.kwargs['post_id'])
         context = super().get_context_data(**kwargs)
-        post = get_object_or_404(Post, pk=self.kwargs['post_id'])
-        context['post'] = post
+        context['post'] = post_obj
         context['form'] = CommentsForm()
-        context['comments'] = post.comments.select_related('author')
+        context['comments'] = post_obj.comments.select_related('author')
         return context
 
+    def get_queryset(self):
+        qs = Post.post_manager.all()
+        condition = Q(
+            pub_date__lte=timezone.now(),
+            is_published=True,
+            category__is_published=True
+        )
 
-class DeletePostView(LoginRequiredMixin, DeleteView):
+        if self.request.user.is_authenticated:
+            condition |= Q(author_id=self.request.user.id)
+        return qs.filter(condition)
+
+
+class DeletePostView(LoginRequiredMixin, OnlyAuthorMixin, DeleteView):
     model = Post
     form_class = PostForm
     pk_url_kwarg = 'post_id'
@@ -105,10 +138,18 @@ class EditPostView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
     pk_url_kwarg = 'post_id'
     template_name = 'blog/create.html'
 
+    def dispatch(self, request, *args, **kwargs):
+        if self.get_object().author != self.request.user:
+            return redirect(
+                'blog:post_detail',
+                self.kwargs.get('post_id')
+            )
+        return super().dispatch(request, *args, **kwargs)
+    
     def form_valid(self, form):
         form.instance.author = self.request.user
         return super().form_valid(form)
-
+    
 
 class CategoryPostListView(ListView):
     template_name = 'blog/category.html'
@@ -124,7 +165,12 @@ class CategoryPostListView(ListView):
         posts = (
             self.category
             .posts
-            .filter(category__slug=self.kwargs['category_slug'])
+            .filter(
+                category__slug=self.kwargs['category_slug'],
+                pub_date__lte=timezone.now(),
+                is_published=True,
+                category__is_published=True
+            )
         )
         return posts
 
@@ -154,7 +200,7 @@ class CommentCreateView(LoginRequiredMixin, CreateView):
         return reverse('blog:post_detail', kwargs={'post_id': self.post_obj.pk})
 
 
-class EditCommentView(LoginRequiredMixin, UpdateView):
+class EditCommentView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
     model = Comments
     form_class = CommentsForm
     template_name = 'blog/comment.html'
@@ -178,7 +224,7 @@ class EditCommentView(LoginRequiredMixin, UpdateView):
         return reverse('blog:post_detail', args=(pk,))
 
 
-class DeleteCommentView(LoginRequiredMixin, DeleteView):
+class DeleteCommentView(LoginRequiredMixin, OnlyAuthorMixin, DeleteView):
     model = Comments
     form_class = CommentsForm
     template_name = 'blog/comment.html'

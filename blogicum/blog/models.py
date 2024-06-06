@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import Count
-from django.db.models.functions import Now
+from django.utils import timezone
 from django.urls import reverse
 from core.models import IsPublishedAndCreatedAtModel
 
@@ -26,19 +26,18 @@ class PostQuerySet(models.QuerySet):
 
     def published(self):
         return self.filter(
-            pub_date__lte=Now(),
+            pub_date__lte=timezone.now(),
             is_published=True,
             category__is_published=True
         )
 
 
-class PublishedPostManager(models.Manager):
+class PostManager(models.Manager):
     def get_queryset(self):
         return (
             PostQuerySet(self.model)
             .with_coment_count()
             .with_related_data()
-            .published()
         )
 
 
@@ -70,12 +69,15 @@ class Post(IsPublishedAndCreatedAtModel):
     )
     image = models.ImageField(verbose_name='Картинка у публикации', blank=True)
 
-    published = PublishedPostManager()
+    qs_manager = PostQuerySet.as_manager()
+    post_manager = PostManager()
+    objects = models.Manager()
 
     class Meta:
         default_related_name = 'posts'
         verbose_name = 'публикация'
         verbose_name_plural = 'Публикации'
+        ordering = ('-pub_date',)
 
     def __str__(self):
         return self.title

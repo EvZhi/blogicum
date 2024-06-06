@@ -10,7 +10,7 @@ POSTS_URL = 'posts/<int:post_id>'
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
 
-    path(f'{POSTS_URL}/', views.PostDeteailView.as_view(), name='post_detail'),
+    path(f'{POSTS_URL}/', views.PostDetailView.as_view(), name='post_detail'),
     path(f'{POSTS_URL}/edit/', views.EditPostView.as_view(), name='edit_post'),
     path(f'{POSTS_URL}/delete/', views.DeletePostView.as_view(), name='delete_post'),
 

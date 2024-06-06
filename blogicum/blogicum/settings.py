@@ -25,6 +25,10 @@ SECRET_KEY = 'django-insecure-g!g4lm7-7t)51rki$w5i3)*4_8-9^^76%^8!*l2%in1sy6mo^-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+
+EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'
+
 CSRF_FAILURE_VIEW = 'pages.views.csrf_failure'
 
 STATICFILES_DIRS = [
