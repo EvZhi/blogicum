@@ -16,6 +16,10 @@ PUGINATION_NUMBER = 10
 
 
 class PostMixin():
+    model = Post
+    form_class = PostForm
+    template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'
     condition = Q(
         pub_date__lte=timezone.now(),
         is_published=True,
@@ -29,9 +33,19 @@ class PostMixin():
             .with_coment_count()
         )
 
-    def get_object(self, queryset=Post.post_manager):
-        post_id = self.kwargs.get('post_id')
-        return get_object_or_404(queryset, pk=post_id)
+    def get_object(self):
+        return get_object_or_404(
+            self.get_queryset(),
+            pk=self.kwargs['post_id']
+        )
+
+    def get_success_url(self):
+        slug = self.request.user.username
+        return reverse('blog:profile', args=(slug,))
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        return super().form_valid(form)
 
 
 class OnlyAuthorMixin(UserPassesTestMixin):
@@ -48,6 +62,35 @@ class IndexView(PostMixin, ListView):
 
     def get_queryset(self):
         return super().get_queryset().published()
+
+
+class CategoryPostListView(ListView):
+    template_name = 'blog/category.html'
+    model = Category
+    paginate_by = PUGINATION_NUMBER
+
+    def get_queryset(self):
+        self.category = get_object_or_404(
+            self.model,
+            slug=self.kwargs['category_slug'],
+            is_published=True
+        )
+        qs = (
+            self.category
+            .posts
+            .with_related_data()
+            .with_coment_count()
+            .published()
+            .filter(
+                category__slug=self.kwargs['category_slug'],
+            )
+        )
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = self.category
+        return context
 
 
 class ProfileView(ListView):
@@ -82,30 +125,8 @@ class EditProfileView(LoginRequiredMixin, UpdateView):
         return reverse('blog:profile', args=(slug,))
 
 
-class CreatePostView(LoginRequiredMixin, CreateView):
-    model = Post
-    form_class = PostForm
-    template_name = 'blog/create.html'
-
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        return super().form_valid(form)
-
-    def get_success_url(self):
-        slug = self.request.user.username
-        return reverse('blog:profile', args=(slug,))
-
-
 class PostDetailView(PostMixin, DetailView):
-    model = Post
     template_name = 'blog/detail.html'
-    pk_url_kwarg = 'post_id'
-
-    def get_object(self):
-        return get_object_or_404(
-            self.get_queryset(),
-            pk=self.kwargs['post_id']
-        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -115,37 +136,13 @@ class PostDetailView(PostMixin, DetailView):
         return context
 
     def get_queryset(self):
-        qs = Post.post_manager.all()
-       
+        qs = super().get_queryset()
         if self.request.user.is_authenticated:
             self.condition |= Q(author_id=self.request.user.id)
         return qs.filter(self.condition)
 
 
-class DeletePostView(LoginRequiredMixin, OnlyAuthorMixin, DeleteView):
-    model = Post
-    form_class = PostForm
-    pk_url_kwarg = 'post_id'
-    template_name = 'blog/create.html'
-
-    def get_success_url(self):
-        slug = self.request.user.username
-        return reverse('blog:profile', args=(slug,))
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        post = get_object_or_404(Post, pk=self.kwargs['post_id'])
-        form = PostForm(instance=post)
-        context['form'] = form
-        return context
-
-
-class EditPostView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
-    model = Post
-    form_class = PostForm
-    pk_url_kwarg = 'post_id'
-    template_name = 'blog/create.html'
-
+class EditPostView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
     def dispatch(self, request, *args, **kwargs):
         if self.get_object().author != self.request.user:
             return redirect(
@@ -154,38 +151,13 @@ class EditPostView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
             )
         return super().dispatch(request, *args, **kwargs)
 
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        return super().form_valid(form)
+
+class DeletePostView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, DeleteView):
+    pass
 
 
-class CategoryPostListView(ListView):
-    template_name = 'blog/category.html'
-    model = Category
-    paginate_by = PUGINATION_NUMBER
-
-    def get_queryset(self):
-        self.category = get_object_or_404(
-            self.model,
-            slug=self.kwargs['category_slug'],
-            is_published=True
-        )
-        qs = (
-            self.category
-            .posts
-            .with_related_data()
-            .with_coment_count()
-            .published()
-            .filter(
-                category__slug=self.kwargs['category_slug'],
-            )
-        )
-        return qs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['category'] = self.category
-        return context
+class CreatePostView(PostMixin, LoginRequiredMixin, CreateView):
+    pass
 
 
 class CommentMixin(LoginRequiredMixin):
