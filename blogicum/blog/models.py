@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.urls import reverse
 from django.utils import timezone
 
@@ -20,7 +20,7 @@ class PostQuerySet(models.QuerySet):
             'author'
         )
 
-    def with_coment_count(self):
+    def with_comment_count(self):
         return self.annotate(
             comment_count=Count('comments')
         ).order_by('-pub_date')
@@ -59,7 +59,11 @@ class Post(IsPublishedAndCreatedAtModel):
         null=True,
         verbose_name='Категория'
     )
-    image = models.ImageField(verbose_name='Картинка у публикации', blank=True)
+    image = models.ImageField(
+        verbose_name='Картинка у публикации',
+        upload_to='posts_images',
+        blank=True
+    )
 
     post_manager = PostQuerySet.as_manager()
     objects = models.Manager()
@@ -125,6 +129,3 @@ class Comments(IsPublishedAndCreatedAtModel):
         verbose_name = 'комментарий'
         verbose_name_plural = ' Комментарии'
         ordering = ('created_at',)
-
-    def __str__(self):
-        return self.text[:30]

@@ -9,21 +9,38 @@ POSTS_URL = 'posts/<int:post_id>'
 
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
-
+    path('posts/create/', views.PostCreateView.as_view(), name='create_post'),
     path(f'{POSTS_URL}/', views.PostDetailView.as_view(), name='post_detail'),
-    path(f'{POSTS_URL}/edit/', views.EditPostView.as_view(), name='edit_post'),
-    path(f'{POSTS_URL}/delete/', views.DeletePostView.as_view(), name='delete_post'),
-
-
-    path(f'{POSTS_URL}/comment', views.CommentCreateView.as_view(), name='add_comment'),
-    path(f'{POSTS_URL}/edit_comment/<int:comment_id>/', views.CommentEditView.as_view(), name='edit_comment'),
-    path(f'{POSTS_URL}/delete_comment/<int:comment_id>/', views.CommentDeleteView.as_view(), name='delete_comment'),
-
-
-    path('posts/create/', views.CreatePostView.as_view(), name='create_post'),
-
-    path('profile/<slug:username>/', views.ProfileView.as_view(), name='profile'),
-    path('edit_profile/', views.EditProfileView.as_view(), name='edit_profile'),
-
-    path('category/<slug:category_slug>/', views.CategoryPostListView.as_view(), name='category_posts'),
+    path(f'{POSTS_URL}/edit/', views.PostEditView.as_view(), name='edit_post'),
+    path(
+        f'{POSTS_URL}/delete/',
+        views.PostDeleteView.as_view(),
+        name='delete_post'
+    ),
+    path(
+        f'{POSTS_URL}/comment',
+        views.CommentCreateView.as_view(),
+        name='add_comment'
+    ),
+    path(
+        f'{POSTS_URL}/edit_comment/<int:comment_id>/',
+        views.CommentEditView.as_view(),
+        name='edit_comment'
+    ),
+    path(
+        f'{POSTS_URL}/delete_comment/<int:comment_id>/',
+        views.CommentDeleteView.as_view(),
+        name='delete_comment'
+    ),
+    path(
+        'category/<slug:category_slug>/',
+        views.CategoryPostListView.as_view(),
+        name='category_posts'
+    ),
+    path(
+        'profile/<slug:username>/', views.ProfileView.as_view(), name='profile'
+    ),
+    path(
+        'edit_profile/', views.ProfileEditView.as_view(), name='edit_profile'
+    ),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

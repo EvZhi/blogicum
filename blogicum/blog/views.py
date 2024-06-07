@@ -1,11 +1,10 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import User
 from django.db.models import Q
-from django.db.models.base import Model as Model
 from django.views.generic import (
     CreateView, DetailView, DeleteView, ListView, UpdateView
 )
-from django.shortcuts import get_object_or_404, get_list_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 
@@ -27,7 +26,7 @@ class PostQuerySetMixin:
         return (
             Post.post_manager
             .with_related_data()
-            .with_coment_count()
+            .with_comment_count()
         )
 
 
@@ -45,27 +44,26 @@ class CategoryPostListView(PostQuerySetMixin, ListView):
     model = Category
     paginate_by = PUGINATION_NUMBER
 
-    def get_queryset(self):
-        self.category = get_object_or_404(
+    def get_object(self):
+        return get_object_or_404(
             self.model,
             slug=self.kwargs['category_slug'],
             is_published=True
         )
-        qs = (
-            self.category
-            .posts
-            .with_related_data()
-            .with_coment_count()
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
             .published()
             .filter(
-                category__slug=self.kwargs['category_slug'],
+                category__slug=self.kwargs['category_slug']
             )
         )
-        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = self.category
+        context['category'] = self.get_object()
         return context
 
 
@@ -82,13 +80,18 @@ class ProfileView(PostQuerySetMixin, ListView):
         return context
 
     def get_queryset(self):
-        qs = super().get_queryset().filter(author__username=self.kwargs['username'])
-        if self.request.user.is_authenticated and self.request.user.username == self.kwargs['username']:
+        qs = super().get_queryset().filter(
+            author__username=self.kwargs['username']
+        )
+        if (
+            self.request.user.is_authenticated
+            and self.request.user.username == self.kwargs['username']
+        ):
             return qs
         return qs.published()
 
 
-class EditProfileView(LoginRequiredMixin, UpdateView):
+class ProfileEditView(LoginRequiredMixin, UpdateView):
     model = User
     fields = ('username', 'first_name', 'last_name', 'email')
     template_name = 'blog/user.html'
@@ -134,7 +137,8 @@ class PostDetailView(PostMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context['post'] = self.get_object()
         context['form'] = CommentsForm()
-        context['comments'] = self.get_object().comments.select_related('author')
+        context['comments'] = self.get_object(
+        ).comments.select_related('author')
         return context
 
     def get_queryset(self):
@@ -144,7 +148,7 @@ class PostDetailView(PostMixin, DetailView):
         return qs.filter(self.condition)
 
 
-class EditPostView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
+class PostEditView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
     def dispatch(self, request, *args, **kwargs):
         if self.get_object().author != self.request.user:
             return redirect(
@@ -154,11 +158,13 @@ class EditPostView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class DeletePostView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, DeleteView):
+class PostDeleteView(
+    PostMixin, LoginRequiredMixin, OnlyAuthorMixin, DeleteView
+):
     pass
 
 
-class CreatePostView(PostMixin, LoginRequiredMixin, CreateView):
+class PostCreateView(PostMixin, LoginRequiredMixin, CreateView):
     pass
 
 
