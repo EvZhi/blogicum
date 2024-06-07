@@ -5,7 +5,7 @@ from django.db.models.base import Model as Model
 from django.views.generic import (
     CreateView, DetailView, DeleteView, ListView, UpdateView
 )
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, get_list_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,39 +15,6 @@ from blog.forms import CommentsForm, PostForm
 PUGINATION_NUMBER = 10
 
 
-class PostMixin():
-    model = Post
-    form_class = PostForm
-    template_name = 'blog/create.html'
-    pk_url_kwarg = 'post_id'
-    condition = Q(
-        pub_date__lte=timezone.now(),
-        is_published=True,
-        category__is_published=True
-    )
-
-    def get_queryset(self):
-        return (
-            Post.post_manager
-            .with_related_data()
-            .with_coment_count()
-        )
-
-    def get_object(self):
-        return get_object_or_404(
-            self.get_queryset(),
-            pk=self.kwargs['post_id']
-        )
-
-    def get_success_url(self):
-        slug = self.request.user.username
-        return reverse('blog:profile', args=(slug,))
-
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        return super().form_valid(form)
-
-
 class OnlyAuthorMixin(UserPassesTestMixin):
 
     def test_func(self):
@@ -55,7 +22,16 @@ class OnlyAuthorMixin(UserPassesTestMixin):
         return object.author == self.request.user
 
 
-class IndexView(PostMixin, ListView):
+class PostQuerySetMixin:
+    def get_queryset(self):
+        return (
+            Post.post_manager
+            .with_related_data()
+            .with_coment_count()
+        )
+
+
+class IndexView(PostQuerySetMixin, ListView):
     model = Post
     template_name = 'blog/index.html'
     paginate_by = PUGINATION_NUMBER
@@ -64,7 +40,7 @@ class IndexView(PostMixin, ListView):
         return super().get_queryset().published()
 
 
-class CategoryPostListView(ListView):
+class CategoryPostListView(PostQuerySetMixin, ListView):
     template_name = 'blog/category.html'
     model = Category
     paginate_by = PUGINATION_NUMBER
@@ -93,7 +69,7 @@ class CategoryPostListView(ListView):
         return context
 
 
-class ProfileView(ListView):
+class ProfileView(PostQuerySetMixin, ListView):
     model = Post
     template_name = 'blog/profile.html'
     paginate_by = PUGINATION_NUMBER
@@ -106,10 +82,10 @@ class ProfileView(ListView):
         return context
 
     def get_queryset(self):
-        qs = Post.post_manager.filter(author__username=self.kwargs['username'])
+        qs = super().get_queryset().filter(author__username=self.kwargs['username'])
         if self.request.user.is_authenticated and self.request.user.username == self.kwargs['username']:
-            return qs.with_coment_count()
-        return qs.with_coment_count().published()
+            return qs
+        return qs.published()
 
 
 class EditProfileView(LoginRequiredMixin, UpdateView):
@@ -123,6 +99,32 @@ class EditProfileView(LoginRequiredMixin, UpdateView):
     def get_success_url(self):
         slug = self.request.user.username
         return reverse('blog:profile', args=(slug,))
+
+
+class PostMixin(PostQuerySetMixin):
+    model = Post
+    form_class = PostForm
+    template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'
+    condition = Q(
+        pub_date__lte=timezone.now(),
+        is_published=True,
+        category__is_published=True
+    )
+
+    def get_object(self):
+        return get_object_or_404(
+            self.get_queryset(),
+            pk=self.kwargs['post_id']
+        )
+
+    def get_success_url(self):
+        slug = self.request.user.username
+        return reverse('blog:profile', args=(slug,))
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        return super().form_valid(form)
 
 
 class PostDetailView(PostMixin, DetailView):
