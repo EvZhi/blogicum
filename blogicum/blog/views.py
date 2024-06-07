@@ -175,11 +175,11 @@ class CategoryPostListView(ListView):
         qs = (
             self.category
             .posts
+            .with_related_data()
+            .with_coment_count()
+            .published()
             .filter(
                 category__slug=self.kwargs['category_slug'],
-                pub_date__lte=timezone.now(),
-                is_published=True,
-                category__is_published=True
             )
         )
         return qs
