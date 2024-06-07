@@ -188,26 +188,40 @@ class CategoryPostListView(ListView):
         context = super().get_context_data(**kwargs)
         context['category'] = self.category
         return context
-
-
-class CommentCreateView(LoginRequiredMixin, CreateView):
-    post_obj = None
+    
+class CommentMixin(LoginRequiredMixin):
     model = Comments
     form_class = CommentsForm
     template_name = 'blog/comment.html'
-    pk_url_kwarg = 'post_id'
+    pk_url_kwarg = 'comment_id'
 
-    def dispatch(self, request, *args, **kwargs):
-        self.post_obj = get_object_or_404(Post, pk=kwargs['post_id'])
-        return super().dispatch(request, *args, **kwargs)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['comment'] = self.get_object()
+        return context
 
     def form_valid(self, form):
         form.instance.author = self.request.user
-        form.instance.post = self.post_obj
+        form.instance.post = get_object_or_404(Post, pk=self.kwargs['post_id'])
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse('blog:post_detail', kwargs={'post_id': self.post_obj.pk})
+        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
+
+
+class CommentCreateView(LoginRequiredMixin, CreateView):
+    model = Comments
+    form_class = CommentsForm
+    template_name = 'blog/comment.html'
+    pk_url_kwarg = 'comment_id'
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        form.instance.post = get_object_or_404(Post, pk=self.kwargs['post_id'])
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
 
 
 class EditCommentView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
@@ -216,21 +230,13 @@ class EditCommentView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
     template_name = 'blog/comment.html'
     pk_url_kwarg = 'comment_id'
 
-    def form_valid(self, form):
-        post_obj = get_object_or_404(Post, pk=self.kwargs['post_id'])
-        form.instance.author = self.request.user
-        form.instance.post = post_obj
-        return super().form_valid(form)
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['comment'] = self.get_object()
         return context
 
     def get_success_url(self):
-        post = get_object_or_404(Post, pk=self.kwargs['post_id'])
-        pk = post.pk
-        return reverse('blog:post_detail', args=(pk,))
+        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
 
 
 class DeleteCommentView(
@@ -241,12 +247,5 @@ class DeleteCommentView(
     template_name = 'blog/comment.html'
     pk_url_kwarg = 'comment_id'
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['comment'] = self.get_object()
-        return context
-
     def get_success_url(self):
-        post = get_object_or_404(Post, pk=self.kwargs['post_id'])
-        pk = post.pk
-        return reverse('blog:post_detail', args=(pk,))
+        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
