@@ -1,8 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.db import models
-from django.db.models import Count
-from django.utils import timezone
+from django.db.models import Count, Q
 from django.urls import reverse
+from django.utils import timezone
+
 from core.models import IsPublishedAndCreatedAtModel
 
 MAX_LENGHT_CHAR = 256
@@ -29,15 +30,6 @@ class PostQuerySet(models.QuerySet):
             pub_date__lte=timezone.now(),
             is_published=True,
             category__is_published=True
-        )
-
-
-class PostManager(models.Manager):
-    def get_queryset(self):
-        return (
-            PostQuerySet(self.model)
-            .with_coment_count()
-            .with_related_data()
         )
 
 
@@ -69,8 +61,7 @@ class Post(IsPublishedAndCreatedAtModel):
     )
     image = models.ImageField(verbose_name='Картинка у публикации', blank=True)
 
-    qs_manager = PostQuerySet.as_manager()
-    post_manager = PostManager()
+    post_manager = PostQuerySet.as_manager()
     objects = models.Manager()
 
     class Meta:

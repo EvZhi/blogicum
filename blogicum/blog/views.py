@@ -3,19 +3,35 @@ from django.contrib.auth.models import User
 from django.db.models import Q
 from django.db.models.base import Model as Model
 from django.views.generic import (
-    CreateView,
-    DetailView,
-    DeleteView,
-    ListView,
-    UpdateView
+    CreateView, DetailView, DeleteView, ListView, UpdateView
 )
-
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 
-from blog.models import Category, Post, Comments
-from blog.forms import PostForm, CommentsForm
+from blog.models import Category, Comments, Post
+from blog.forms import CommentsForm, PostForm
+
+PUGINATION_NUMBER = 10
+
+
+class PostMixin():
+    condition = Q(
+        pub_date__lte=timezone.now(),
+        is_published=True,
+        category__is_published=True
+    )
+
+    def get_queryset(self):
+        return (
+            Post.post_manager
+            .with_related_data()
+            .with_coment_count()
+        )
+
+    def get_object(self, queryset=Post.post_manager):
+        post_id = self.kwargs.get('post_id')
+        return get_object_or_404(queryset, pk=post_id)
 
 
 class OnlyAuthorMixin(UserPassesTestMixin):
@@ -25,23 +41,21 @@ class OnlyAuthorMixin(UserPassesTestMixin):
         return object.author == self.request.user
 
 
-class IndexView(ListView):
+class IndexView(PostMixin, ListView):
     model = Post
-    paginate_by = 10
     template_name = 'blog/index.html'
+    paginate_by = PUGINATION_NUMBER
 
     def get_queryset(self):
-        return Post.post_manager.filter(
-            pub_date__lte=timezone.now(),
-            is_published=True,
-            category__is_published=True
-        )
+        return super().get_queryset().published()
 
 
 class ProfileView(ListView):
     model = Post
     template_name = 'blog/profile.html'
-    paginate_by = 10
+    paginate_by = PUGINATION_NUMBER
+
+
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -53,17 +67,13 @@ class ProfileView(ListView):
     def get_queryset(self):
         qs = Post.post_manager.filter(author__username=self.kwargs['username'])
         if self.request.user.is_authenticated and self.request.user.username == self.kwargs['username']:
-            return qs
-        return qs.filter(
-            pub_date__lte=timezone.now(),
-            is_published=True,
-            category__is_published=True
-        )
+            return qs.with_coment_count()
+        return qs.with_coment_count().published()
 
 
 class EditProfileView(LoginRequiredMixin, UpdateView):
-    fields = ('username', 'first_name', 'last_name', 'email')
     model = User
+    fields = ('username', 'first_name', 'last_name', 'email')
     template_name = 'blog/user.html'
 
     def get_object(self):
@@ -88,30 +98,30 @@ class CreatePostView(LoginRequiredMixin, CreateView):
         return reverse('blog:profile', args=(slug,))
 
 
-class PostDetailView(DetailView):
+class PostDetailView(PostMixin, DetailView):
     model = Post
     template_name = 'blog/detail.html'
     pk_url_kwarg = 'post_id'
 
+    def get_object(self):
+        return get_object_or_404(
+            self.get_queryset(),
+            pk=self.kwargs['post_id']
+        )
+
     def get_context_data(self, **kwargs):
-        post_obj = get_object_or_404(self.get_queryset(), pk=self.kwargs['post_id'])
         context = super().get_context_data(**kwargs)
-        context['post'] = post_obj
+        context['post'] = self.get_object()
         context['form'] = CommentsForm()
-        context['comments'] = post_obj.comments.select_related('author')
+        context['comments'] = self.get_object().comments.select_related('author')
         return context
 
     def get_queryset(self):
         qs = Post.post_manager.all()
-        condition = Q(
-            pub_date__lte=timezone.now(),
-            is_published=True,
-            category__is_published=True
-        )
-
+       
         if self.request.user.is_authenticated:
-            condition |= Q(author_id=self.request.user.id)
-        return qs.filter(condition)
+            self.condition |= Q(author_id=self.request.user.id)
+        return qs.filter(self.condition)
 
 
 class DeletePostView(LoginRequiredMixin, OnlyAuthorMixin, DeleteView):
@@ -145,16 +155,16 @@ class EditPostView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
                 self.kwargs.get('post_id')
             )
         return super().dispatch(request, *args, **kwargs)
-    
+
     def form_valid(self, form):
         form.instance.author = self.request.user
         return super().form_valid(form)
-    
+
 
 class CategoryPostListView(ListView):
     template_name = 'blog/category.html'
     model = Category
-    paginate_by = 10
+    paginate_by = PUGINATION_NUMBER
 
     def get_queryset(self):
         self.category = get_object_or_404(
@@ -162,7 +172,7 @@ class CategoryPostListView(ListView):
             slug=self.kwargs['category_slug'],
             is_published=True
         )
-        posts = (
+        qs = (
             self.category
             .posts
             .filter(
@@ -172,7 +182,7 @@ class CategoryPostListView(ListView):
                 category__is_published=True
             )
         )
-        return posts
+        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -205,12 +215,11 @@ class EditCommentView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
     form_class = CommentsForm
     template_name = 'blog/comment.html'
     pk_url_kwarg = 'comment_id'
-    post_obj = None
 
     def form_valid(self, form):
-        self.post_obj = get_object_or_404(Post, pk=self.kwargs['post_id'])
+        post_obj = get_object_or_404(Post, pk=self.kwargs['post_id'])
         form.instance.author = self.request.user
-        form.instance.post = self.post_obj
+        form.instance.post = post_obj
         return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
@@ -224,7 +233,9 @@ class EditCommentView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
         return reverse('blog:post_detail', args=(pk,))
 
 
-class DeleteCommentView(LoginRequiredMixin, OnlyAuthorMixin, DeleteView):
+class DeleteCommentView(
+    LoginRequiredMixin, OnlyAuthorMixin, DeleteView
+):
     model = Comments
     form_class = CommentsForm
     template_name = 'blog/comment.html'
