@@ -55,8 +55,6 @@ class ProfileView(ListView):
     template_name = 'blog/profile.html'
     paginate_by = PUGINATION_NUMBER
 
-
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['profile'] = get_object_or_404(
@@ -188,7 +186,8 @@ class CategoryPostListView(ListView):
         context = super().get_context_data(**kwargs)
         context['category'] = self.category
         return context
-    
+
+
 class CommentMixin(LoginRequiredMixin):
     model = Comments
     form_class = CommentsForm
@@ -209,43 +208,16 @@ class CommentMixin(LoginRequiredMixin):
         return reverse('blog:post_detail', args=[self.kwargs['post_id']])
 
 
-class CommentCreateView(LoginRequiredMixin, CreateView):
-    model = Comments
-    form_class = CommentsForm
-    template_name = 'blog/comment.html'
-    pk_url_kwarg = 'comment_id'
-
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        form.instance.post = get_object_or_404(Post, pk=self.kwargs['post_id'])
-        return super().form_valid(form)
-
-    def get_success_url(self):
-        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
+class CommentCreateView(CommentMixin, CreateView):
+    pass
 
 
-class EditCommentView(LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
-    model = Comments
-    form_class = CommentsForm
-    template_name = 'blog/comment.html'
-    pk_url_kwarg = 'comment_id'
+class CommentDeleteView(CommentMixin, OnlyAuthorMixin, DeleteView):
+    pass
 
+
+class CommentEditView(CommentMixin, OnlyAuthorMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['comment'] = self.get_object()
         return context
-
-    def get_success_url(self):
-        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
-
-
-class DeleteCommentView(
-    LoginRequiredMixin, OnlyAuthorMixin, DeleteView
-):
-    model = Comments
-    form_class = CommentsForm
-    template_name = 'blog/comment.html'
-    pk_url_kwarg = 'comment_id'
-
-    def get_success_url(self):
-        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
