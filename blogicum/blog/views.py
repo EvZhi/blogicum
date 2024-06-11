@@ -4,13 +4,13 @@ from django.db.models import Q
 from django.views.generic import (
     CreateView, DetailView, DeleteView, ListView, UpdateView
 )
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
-from blog.constants import PUGINATION_NUMBER
+from blog.constants import NUMBER_POSTS_PER_PAGE
 from blog.forms import CommentForm, PostForm
 from blog.mixins import (
-    OnlyAuthorMixin, PostQuerySetMixin, PostMixin, CommentMixin
+    CommentMixin, PostEditMixin, PostMixin, PostQuerySetMixin, OnlyAuthorMixin
 )
 from blog.models import Category, Post
 
@@ -18,7 +18,7 @@ from blog.models import Category, Post
 class IndexView(PostQuerySetMixin, ListView):
     model = Post
     template_name = 'blog/index.html'
-    paginate_by = PUGINATION_NUMBER
+    paginate_by = NUMBER_POSTS_PER_PAGE
 
     def get_queryset(self):
         return super().get_queryset().published()
@@ -27,7 +27,7 @@ class IndexView(PostQuerySetMixin, ListView):
 class CategoryPostListView(PostQuerySetMixin, ListView):
     template_name = 'blog/category.html'
     model = Category
-    paginate_by = PUGINATION_NUMBER
+    paginate_by = NUMBER_POSTS_PER_PAGE
 
     def get_object(self):
         return get_object_or_404(
@@ -55,7 +55,7 @@ class CategoryPostListView(PostQuerySetMixin, ListView):
 class ProfileView(PostQuerySetMixin, ListView):
     model = Post
     template_name = 'blog/profile.html'
-    paginate_by = PUGINATION_NUMBER
+    paginate_by = NUMBER_POSTS_PER_PAGE
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -99,7 +99,7 @@ class PostDetailView(PostMixin, DetailView):
         context['post'] = self.get_object()
         context['form'] = CommentForm()
         context['comments'] = self.get_object(
-        ).comment.select_related('author')
+        ).comments.select_related('author')
         return context
 
     def get_queryset(self):
@@ -109,14 +109,8 @@ class PostDetailView(PostMixin, DetailView):
         return qs.filter(self.condition)
 
 
-class PostEditView(LoginRequiredMixin, PostMixin, OnlyAuthorMixin, UpdateView):
-    def dispatch(self, request, *args, **kwargs):
-        if self.get_object().author != self.request.user:
-            return redirect(
-                'blog:post_detail',
-                self.kwargs.get('post_id')
-            )
-        return super().dispatch(request, *args, **kwargs)
+class PostEditView(LoginRequiredMixin, PostEditMixin, OnlyAuthorMixin, UpdateView):
+    pass
 
 
 class PostDeleteView(
@@ -127,7 +121,6 @@ class PostDeleteView(
         form = PostForm(instance=self.object)
         context['form'] = form
         return context
-    pass
 
 
 class PostCreateView(LoginRequiredMixin, PostMixin, CreateView):

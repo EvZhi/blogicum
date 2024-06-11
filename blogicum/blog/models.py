@@ -3,8 +3,8 @@ from django.db import models
 from django.urls import reverse
 
 from blog.constants import MAX_LENGHT_CHAR, STR_LENGTH
-from core.models import IsPublishedAndCreatedAtModel
 from blog.managers import PostQuerySet
+from core.models import IsPublishedAndCreatedAtModel
 
 
 User = get_user_model()
@@ -106,12 +106,13 @@ class Comment(IsPublishedAndCreatedAtModel):
     text = models.TextField(verbose_name='Текст комментария')
 
     class Meta:
-        default_related_name = 'comment'
+        default_related_name = 'comments'
         verbose_name = 'комментарий'
         verbose_name_plural = ' Комментарии'
         ordering = ('created_at',)
 
     def __str__(self):
         return (
-            f'Автор поста: {self.author} | Пост: "{self.post}"'
+            f'Комментарий автора {self.author} к посту "{self.post}",'
+            f' текст: {self.text[:STR_LENGTH]}...'
         )

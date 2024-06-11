@@ -2,6 +2,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
+from django.shortcuts import redirect
 from django.utils import timezone
 
 from blog.forms import CommentForm, PostForm
@@ -48,6 +49,16 @@ class PostMixin(PostQuerySetMixin):
     def form_valid(self, form):
         form.instance.author = self.request.user
         return super().form_valid(form)
+
+
+class PostEditMixin(PostMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if self.get_object().author != self.request.user:
+            return redirect(
+                'blog:post_detail',
+                self.kwargs.get('post_id')
+            )
+        return super().dispatch(request, *args, **kwargs)
 
 
 class CommentMixin(LoginRequiredMixin):
