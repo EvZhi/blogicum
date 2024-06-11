@@ -1,4 +1,4 @@
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.views.generic import (
@@ -6,28 +6,13 @@ from django.views.generic import (
 )
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
-from django.utils import timezone
 
-from blog.models import Category, Comments, Post
-from blog.forms import CommentsForm, PostForm
-
-PUGINATION_NUMBER = 10
-
-
-class OnlyAuthorMixin(UserPassesTestMixin):
-
-    def test_func(self):
-        object = self.get_object()
-        return object.author == self.request.user
-
-
-class PostQuerySetMixin:
-    def get_queryset(self):
-        return (
-            Post.post_manager
-            .with_related_data()
-            .with_comment_count()
-        )
+from blog.constants import PUGINATION_NUMBER
+from blog.forms import CommentForm, PostForm
+from blog.mixins import (
+    OnlyAuthorMixin, PostQuerySetMixin, PostMixin, CommentMixin
+)
+from blog.models import Category, Post
 
 
 class IndexView(PostQuerySetMixin, ListView):
@@ -80,12 +65,15 @@ class ProfileView(PostQuerySetMixin, ListView):
         return context
 
     def get_queryset(self):
+        self.user_obj = get_object_or_404(
+            User, username=self.kwargs['username']
+        )
         qs = super().get_queryset().filter(
-            author__username=self.kwargs['username']
+            author__username=self.user_obj.username
         )
         if (
             self.request.user.is_authenticated
-            and self.request.user.username == self.kwargs['username']
+            and self.request.user.username == self.user_obj.username
         ):
             return qs
         return qs.published()
@@ -100,34 +88,7 @@ class ProfileEditView(LoginRequiredMixin, UpdateView):
         return self.request.user
 
     def get_success_url(self):
-        slug = self.request.user.username
-        return reverse('blog:profile', args=(slug,))
-
-
-class PostMixin(PostQuerySetMixin):
-    model = Post
-    form_class = PostForm
-    template_name = 'blog/create.html'
-    pk_url_kwarg = 'post_id'
-    condition = Q(
-        pub_date__lte=timezone.now(),
-        is_published=True,
-        category__is_published=True
-    )
-
-    def get_object(self):
-        return get_object_or_404(
-            self.get_queryset(),
-            pk=self.kwargs['post_id']
-        )
-
-    def get_success_url(self):
-        slug = self.request.user.username
-        return reverse('blog:profile', args=(slug,))
-
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        return super().form_valid(form)
+        return reverse('blog:profile', args=(self.request.user.username,))
 
 
 class PostDetailView(PostMixin, DetailView):
@@ -136,9 +97,9 @@ class PostDetailView(PostMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['post'] = self.get_object()
-        context['form'] = CommentsForm()
+        context['form'] = CommentForm()
         context['comments'] = self.get_object(
-        ).comments.select_related('author')
+        ).comment.select_related('author')
         return context
 
     def get_queryset(self):
@@ -148,7 +109,7 @@ class PostDetailView(PostMixin, DetailView):
         return qs.filter(self.condition)
 
 
-class PostEditView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
+class PostEditView(LoginRequiredMixin, PostMixin, OnlyAuthorMixin, UpdateView):
     def dispatch(self, request, *args, **kwargs):
         if self.get_object().author != self.request.user:
             return redirect(
@@ -159,33 +120,18 @@ class PostEditView(PostMixin, LoginRequiredMixin, OnlyAuthorMixin, UpdateView):
 
 
 class PostDeleteView(
-    PostMixin, LoginRequiredMixin, OnlyAuthorMixin, DeleteView
+    LoginRequiredMixin, PostMixin, OnlyAuthorMixin, DeleteView
 ):
-    pass
-
-
-class PostCreateView(PostMixin, LoginRequiredMixin, CreateView):
-    pass
-
-
-class CommentMixin(LoginRequiredMixin):
-    model = Comments
-    form_class = CommentsForm
-    template_name = 'blog/comment.html'
-    pk_url_kwarg = 'comment_id'
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['comment'] = self.get_object()
+        form = PostForm(instance=self.object)
+        context['form'] = form
         return context
+    pass
 
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        form.instance.post = get_object_or_404(Post, pk=self.kwargs['post_id'])
-        return super().form_valid(form)
 
-    def get_success_url(self):
-        return reverse('blog:post_detail', args=[self.kwargs['post_id']])
+class PostCreateView(LoginRequiredMixin, PostMixin, CreateView):
+    pass
 
 
 class CommentCreateView(CommentMixin, CreateView):
@@ -197,7 +143,4 @@ class CommentDeleteView(CommentMixin, OnlyAuthorMixin, DeleteView):
 
 
 class CommentEditView(CommentMixin, OnlyAuthorMixin, UpdateView):
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['comment'] = self.get_object()
-        return context
+    pass

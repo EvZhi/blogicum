@@ -1,23 +1,60 @@
 from django.contrib import admin
+from django.utils.html import mark_safe
 
-from .models import Category, Comments, Location, Post
+from .models import Category, Comment, Location, Post
 
 admin.site.empty_value_display = 'Не задано'
 
 
+@admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
     list_display = (
         'title',
         'text',
         'is_published',
+        'image_post',
         'pub_date',
         'author',
         'location',
-        'category'
+        'category',
     )
+    list_display_links = (
+        'title',
+        'image_post',
+        'location',
+        'category',
+    )
+
+    fieldsets = (
+        (None, {
+            'fields': (
+                'is_published',
+                'title',
+                'text',
+                'pub_date',
+                'author',
+            )
+        }),
+        ('Локация и категория', {
+            'fields': (
+                'category',
+                'location',
+            )
+        }),
+        ('Изображение', {
+            'fields': (
+                'image',
+                'image_post',
+            )
+        }),
+    )
+
+    list_per_page = 10
+
+    readonly_fields = ('image_post',)
+
     list_editable = (
         'is_published',
-        'category',
     )
     list_filter = (
         'category',
@@ -27,12 +64,19 @@ class PostAdmin(admin.ModelAdmin):
     )
     search_fields = ('title',)
 
+    @admin.display(description='Превью')
+    def image_post(self, post: Post):
+        if post.image:
+            return mark_safe(f"<img src='{post.image.url}' height=75>")
+        return "Без изображения"
+
 
 class PostInline(admin.StackedInline):
     model = Post
     extra = 0
 
 
+@admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = (
         'title',
@@ -42,12 +86,14 @@ class CategoryAdmin(admin.ModelAdmin):
     )
     list_editable = (
         'is_published',
+        'slug',
     )
     inlines = (
         PostInline,
     )
 
 
+@admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -61,7 +107,8 @@ class LocationAdmin(admin.ModelAdmin):
     )
 
 
-class CommentsAdmin(admin.ModelAdmin):
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
     list_display = (
         'author',
         'text',
@@ -72,8 +119,7 @@ class CommentsAdmin(admin.ModelAdmin):
         'is_published',
     )
 
-
-admin.site.register(Post, PostAdmin)
-admin.site.register(Category, CategoryAdmin)
-admin.site.register(Location, LocationAdmin)
-admin.site.register(Comments, CommentsAdmin)
+    list_display_links = (
+        'author',
+        'post',
+    )
