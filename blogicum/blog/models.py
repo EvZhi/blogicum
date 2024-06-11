@@ -110,7 +110,7 @@ class Comment(IsPublishedAndCreatedAtModel):
         verbose_name = 'комментарий'
         verbose_name_plural = ' Комментарии'
         ordering = ('created_at',)
-    
+
     def __str__(self):
         return (
             f'Автор поста: {self.author} | Пост: "{self.post}"'
