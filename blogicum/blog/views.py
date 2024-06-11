@@ -109,7 +109,9 @@ class PostDetailView(PostMixin, DetailView):
         return qs.filter(self.condition)
 
 
-class PostEditView(LoginRequiredMixin, PostEditMixin, OnlyAuthorMixin, UpdateView):
+class PostEditView(
+    LoginRequiredMixin, PostEditMixin, OnlyAuthorMixin, UpdateView
+):
     pass
 
 
